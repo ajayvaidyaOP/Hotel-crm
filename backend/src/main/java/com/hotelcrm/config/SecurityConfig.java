@@ -50,10 +50,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        List<String> origins = Arrays.stream(allowedOrigins.split(",")).map(String::trim)
-                .filter(s -> !s.isEmpty()).toList();
-        configuration.setAllowedOrigins(origins);
-        configuration.setAllowedOriginPatterns(List.of("https://*.e2b.app", "http://localhost:*", "http://127.0.0.1:*"));
+        List<String> patterns = new java.util.ArrayList<>(List.of(
+                "https://*.e2b.app", "http://localhost:*", "http://127.0.0.1:*"));
+        Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty() && !patterns.contains(s))
+                .forEach(patterns::add);
+        configuration.setAllowedOriginPatterns(patterns);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Content-Disposition", "X-Total-Count"));

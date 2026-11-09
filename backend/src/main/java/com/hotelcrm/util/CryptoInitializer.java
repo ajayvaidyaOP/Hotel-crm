@@ -15,6 +15,7 @@ public class CryptoInitializer {
 
     public CryptoInitializer(@Value("${app.security.encryption-key}") String encryptionKey) {
         this.encryptionKey = encryptionKey;
+        FieldCipher.initialise(encryptionKey);
     }
 
     @EventListener(ApplicationReadyEvent.class)
