@@ -1,0 +1,20 @@
+# Production profile: demo seed data and verbose SQL logging are disabled by default.
+# Every value can still be overridden with environment variables (see .env.example).
+spring:
+  jpa:
+    show-sql: false
+  flyway:
+    clean-disabled: true
+
+app:
+  seed:
+    enabled: ${APP_SEED_ENABLED:false}
+
+logging:
+  level:
+    root: WARN
+    com.hotelcrm: ${LOG_LEVEL:INFO}
+
+server:
+  error:
+    include-message: never

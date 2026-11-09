@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 215 45% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 45% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 45% 15%;
+    --primary: 215 62% 20%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 214 32% 94%;
+    --secondary-foreground: 215 45% 20%;
+    --muted: 214 32% 95%;
+    --muted-foreground: 215 16% 46%;
+    --accent: 217 91% 96%;
+    --accent-foreground: 215 62% 25%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 28% 89%;
+    --input: 214 28% 89%;
+    --ring: 217 70% 45%;
+    --radius: 0.65rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-navy-200;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-navy-300;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-xl border border-border bg-card shadow-card;
+  }
+  .surface-flat {
+    @apply rounded-xl border border-border bg-card;
+  }
+  .table-sticky-head thead th {
+    @apply sticky top-0 z-10 bg-muted/80 backdrop-blur;
+  }
+  .scroll-thin {
+    scrollbar-width: thin;
+  }
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-navy-100/80 transition-colors hover:bg-white/10 hover:text-white;
+  }
+  .sidebar-link-active {
+    @apply bg-white/10 text-white shadow-[inset_2px_0_0_0_#59a2ff];
+  }
+  .kpi-value {
+    @apply text-2xl font-semibold tracking-tight text-navy-900;
+  }
+}
+
+.recharts-wrapper .recharts-cartesian-grid-horizontal line:last-child {
+  stroke: transparent;
+}
