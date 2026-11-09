@@ -301,7 +301,7 @@ public class RoomService {
     public void delete(Long roomId) {
         accessService.assertPermission(Permission.ROOM_WRITE);
         Room room = requireRoom(roomId);
-        if (bookingRoomRepository.existsByRoomId(roomId)) {
+        if (bookingRoomRepository.existsByRoom_Id(roomId)) {
             throw new BusinessException("This room has booking history and cannot be deleted. "
                     + "Mark it out of service instead.");
         }

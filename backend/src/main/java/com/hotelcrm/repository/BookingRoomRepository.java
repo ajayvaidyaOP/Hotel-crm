@@ -27,9 +27,9 @@ public interface BookingRoomRepository extends JpaRepository<BookingRoom, Long> 
 
     List<BookingRoom> findByBookingId(Long bookingId);
 
-    boolean existsByRoomId(Long roomId);
+    boolean existsByRoom_Id(Long roomId);
 
-    long countByRoomId(Long roomId);
+    long countByRoom_Id(Long roomId);
 
     long countByRoomCategoryId(Long categoryId);
 

@@ -117,9 +117,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     BigDecimal averageBookingValue(@Param("hotelIds") List<Long> hotelIds,
                                    @Param("from") LocalDate from, @Param("to") LocalDate to);
 
-    @Query("select coalesce(avg(b.checkOutDate - b.checkInDate), 0) from Booking b where b.hotel.id in :hotelIds " +
-            " and b.status = com.hotelcrm.domain.enums.BookingStatus.CHECKED_OUT " +
-            " and b.checkOutDate between :from and :to")
+    @Query(value = "SELECT COALESCE(AVG(DATEDIFF(check_out_date, check_in_date)), 0.0) " +
+            "FROM bookings WHERE hotel_id IN (:hotelIds) " +
+            "AND status = 'CHECKED_OUT' AND check_out_date BETWEEN :from AND :to",
+            nativeQuery = true)
     Double averageLengthOfStay(@Param("hotelIds") List<Long> hotelIds,
                                @Param("from") LocalDate from, @Param("to") LocalDate to);
 

@@ -206,8 +206,12 @@ public class DashboardService {
         while (!cursor.isAfter(to)) {
             BigDecimal revenue = revenueByDay.getOrDefault(cursor, BigDecimal.ZERO);
             long occupied = occupiedByDay.getOrDefault(cursor, 0L);
-            long bookings = segments.stream()
-                    .filter(s -> s.getCheckInDate().equals(cursor)).count();
+            long bookings = 0;
+            for (BookingRoom segment : segments) {
+                if (segment.getCheckInDate().equals(cursor)) {
+                    bookings++;
+                }
+            }
             points.add(new DashboardDtos.TimePoint(cursor.getDayOfWeek().name().substring(0, 3) + " "
                     + cursor.getDayOfMonth(), cursor, MoneyUtils.scale(revenue), bookings,
                     RateMath.percentage(occupied, Math.max(1, roomCount))));

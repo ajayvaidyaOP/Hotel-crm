@@ -446,7 +446,7 @@ public class ReportService {
                         root.get("hotel").get("id").in(scope),
                         cb.greaterThanOrEqualTo(root.get("checkOutDate"), start),
                         cb.lessThanOrEqualTo(root.get("checkInDate"), end)),
-                Sort.by(Sort.Direction.ASC, "checkInDate")).getContent();
+                Sort.by(Sort.Direction.ASC, "checkInDate"));
         List<BookingRoom> segments = bookingRoomRepository.findForCalendar(scope, start, end.plusDays(1),
                 List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.CHECKED_OUT));
         List<Payment> payments = paymentRepository.findByHotelIdInAndStatusAndPaidAtBetweenOrderByPaidAtAsc(scope,
