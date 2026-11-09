@@ -4,18 +4,27 @@ Three supported shapes:
 
 | Shape | Use case |
 |---|---|
-| **A. Local development** | MySQL in Docker, API via `./gradlew bootRun`, SPA via `npm run dev` |
-| **B. Single host (Docker Compose)** | MySQL + API + nginx in one `docker compose up` |
-| **C. Split deployment** | Managed MySQL, API on an app server/JVM platform, static SPA on a CDN or nginx |
+| **A. Local development** | Local MySQL 8, API via `./gradlew bootRun`, SPA via `npm run dev` |
+| **B. Single server / VM** | MySQL 8 + Spring Boot JAR (`systemd`) + Nginx serving `dist/` and proxying `/api` |
+| **C. Split / Cloud deployment** | Managed MySQL, API on an app server/JVM platform, static SPA on a CDN or Nginx |
 
 ---
 
 ## A. Local development
 
+1. Create the MySQL 8 database and user:
+
+```sql
+CREATE DATABASE hotel_crm CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'hotel_crm'@'localhost' IDENTIFIED BY 'hotel_crm';
+GRANT ALL PRIVILEGES ON hotel_crm.* TO 'hotel_crm'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+2. Run the backend and frontend:
+
 ```bash
-cd hotel-crm
-docker compose up -d                     # MySQL 8 (hotel_crm / hotel_crm)
-cd backend && ./gradlew bootRun          # :8080 · Flyway migrates + seeds
+cd backend && ./gradlew bootRun                # :8080 · Flyway migrates + seeds
 cd ../frontend && npm install && npm run dev   # :5173, proxies /api to :8080
 ```
 
@@ -25,42 +34,100 @@ cd ../frontend && npm install && npm run dev   # :5173, proxies /api to :8080
 
 ---
 
-## B. Single host with Docker Compose
+## B. Single server / VM (systemd + Nginx)
+
+### 1. Build artifacts
 
 ```bash
-cd hotel-crm
-cp backend/.env.example .env        # then edit the secrets below
-docker compose -f docker-compose.full.yml up -d --build
-# SPA on http://<host>/  ·  API behind the same origin at /api
+cd backend && ./gradlew clean bootJar -x test
+cd ../frontend && npm ci && VITE_API_BASE_URL=/api npm run build
 ```
 
-Required secrets in `.env`:
+### 2. Required production environment (`/etc/hotel-crm/backend.env`)
 
 ```bash
+SPRING_PROFILES_ACTIVE=prod
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=hotel_crm
+DB_USERNAME=hotel_crm
+DB_PASSWORD=...
 JWT_SECRET=$(openssl rand -base64 48)          # >= 32 bytes
 APP_ENCRYPTION_KEY=$(openssl rand -base64 32)  # 32-byte AES key for ID proofs
-DB_ROOT_PASSWORD=...      DB_PASSWORD=...
 CORS_ALLOWED_ORIGINS=https://crm.example.com
 APP_SEED_ENABLED=false
 ```
 
-Because nginx proxies `/api` to the `backend` service, the browser only talks to one origin — no CORS at all in this
-shape. TLS terminates in front (Caddy/Traefik/cloud LB) or by adding certificates to nginx.
+### 3. Run the API via `systemd` (`/etc/systemd/system/hotel-crm-backend.service`)
 
-### What the Compose file does
+```ini
+[Unit]
+Description=Hotel CRM Spring Boot API
+After=network.target mysql.service
 
-1. `mysql` — MySQL 8, `utf8mb4`, UTC, persistent named volume, healthcheck.
-2. `backend` — multi-stage build (`eclipse-temurin:21-jdk` → `21-jre`), waits for MySQL health, runs as a non-root user,
-   `prod` profile (no demo seed), healthcheck on `/actuator/health`.
-3. `frontend` — `npm ci && npm run build` then nginx serving `dist/` with SPA fallback, gzip, immutable asset caching and
-   an `/api` reverse proxy.
+[Service]
+User=hotelcrm
+WorkingDirectory=/opt/hotel-crm
+EnvironmentFile=/etc/hotel-crm/backend.env
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=75 -XX:+UseG1GC -jar /opt/hotel-crm/hotel-crm-backend-1.0.0.jar
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 4. Serve the SPA and reverse-proxy `/api` with Nginx
+
+Copy `frontend/dist/*` to `/var/www/hotel-crm/` and configure Nginx:
+
+```nginx
+server {
+    listen 80;
+    server_name crm.example.com;
+    root /var/www/hotel-crm;
+    index index.html;
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-store";
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+        client_max_body_size 10m;
+    }
+
+    location /actuator/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+Because Nginx proxies `/api` to `127.0.0.1:8080`, the browser talks to one origin — no CORS setup is needed in this
+shape. Terminate TLS with Certbot / Let's Encrypt or a cloud load balancer.
 
 ---
 
-## C. Split deployment
+## C. Split / Cloud deployment
 
 ### Database
-Managed MySQL 8 (RDS, Cloud SQL, Azure Database, PlanetScale-like). Requirements:
+Managed MySQL 8 (RDS, Cloud SQL, Azure Database, etc.). Requirements:
 
 * `utf8mb4` / `utf8mb4_unicode_ci`
 * Timezone UTC
@@ -69,10 +136,12 @@ Managed MySQL 8 (RDS, Cloud SQL, Azure Database, PlanetScale-like). Requirements
 
 ### API (JVM host)
 ```bash
+cd backend
 ./gradlew clean bootJar -x test
 java -XX:MaxRAMPercentage=75 -jar build/libs/hotel-crm-backend-*.jar
 ```
-Set the environment variables from `backend/.env.example`, run with `SPRING_PROFILES_ACTIVE=prod`, and expose only 8080.
+Set the environment variables from `backend/.env.example`, run with `SPRING_PROFILES_ACTIVE=prod`, and expose port 8080
+only to your reverse proxy / load balancer.
 
 Reverse proxy expectations:
 * Forward `X-Forwarded-For` / `X-Forwarded-Proto` (Spring Boot runs with `forward-headers-strategy=framework`).
@@ -83,7 +152,7 @@ Reverse proxy expectations:
 ```bash
 cd frontend
 VITE_API_BASE_URL=https://api.example.com/api npm run build   # or /api when proxied
-# upload dist/ to nginx / S3+CloudFront / Netlify / Vercel
+# upload dist/ to Nginx / S3+CloudFront / Netlify / Vercel
 ```
 Configure SPA fallback (`try_files $uri /index.html`) and cache `assets/*` immutably while serving `index.html` with
 `no-store`.
@@ -109,7 +178,7 @@ Configure SPA fallback (`try_files $uri /index.html`) and cache `assets/*` immut
 
 | Task | Command |
 |---|---|
-| View API logs | `docker compose -f docker-compose.full.yml logs -f backend` |
+| View API logs | `journalctl -u hotel-crm-backend -f` |
 | Apply a new migration | add `V3__*.sql` to `backend/src/main/resources/db/migration`, redeploy (Flyway runs at boot) |
 | Check schema drift | startup fails fast when `ddl-auto=validate` disagrees with Flyway — never "fix" it by switching to `update` |
 | Rotate all sessions | `UPDATE users SET token_version = token_version + 1;` |
@@ -130,7 +199,7 @@ Configure SPA fallback (`try_files $uri /index.html`) and cache `assets/*` immut
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Communications link failure` at boot | MySQL down / wrong host | `docker compose ps`, check `DB_HOST` |
+| `Communications link failure` at boot | MySQL down / wrong host | `sudo systemctl status mysql`, check `DB_HOST` and `DB_PORT` |
 | `Schema-validation: missing table` | migrations not applied | ensure Flyway is enabled and `db/migration` is on the classpath |
 | Login returns 401 for demo users | seeding disabled or profile `prod` | set `APP_SEED_ENABLED=true` for a demo environment |
 | 403 on a screen that works for the owner | role lacks the permission or the hotel isn't assigned | adjust role/hotel assignment in Staff |

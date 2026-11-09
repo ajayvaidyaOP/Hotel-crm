@@ -1,6 +1,8 @@
 spring:
   application:
     name: hotel-crm-backend
+  config:
+    import: optional:file:.env[.properties],optional:file:./backend/.env[.properties]
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
@@ -69,7 +71,7 @@ app:
   security:
     max-login-attempts-per-minute: ${LOGIN_RATE_LIMIT:10}
     max-requests-per-minute: ${API_RATE_LIMIT:600}
-  security.encryption-key: ${APP_ENCRYPTION_KEY:dev-only-encryption-key-32bytes!!}
+    encryption-key: ${APP_ENCRYPTION_KEY:dev-only-encryption-key-32bytes!!}
   seed:
     enabled: ${APP_SEED_ENABLED:true}
 
